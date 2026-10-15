@@ -1,5 +1,5 @@
 # Primeira Avaliacao (A01) -- SO
-
+VÍDEO: https://drive.google.com/drive/folders/1a2q0dILXmkHHPCXyjoD3GgiGsjHqeVuI
 ## Emulando o Sistema de Funcionamento do PIX
 
 Projeto em C para estudar **threads, exclusao mutua, condicao de corrida, escalonamento FCFS e sinais POSIX**. Trata-se de uma **simulacao local**, nao de uma implementacao real do PIX nem de um sistema distribuido de producao.
