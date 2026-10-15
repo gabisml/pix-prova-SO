@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -16,7 +16,7 @@
 #define JANELA_CRITICA_MS 3
 
 typedef struct {
-    int id;      
+    int id;
     int origem;
     long valor;
 } Requisicao;
@@ -25,27 +25,27 @@ typedef struct {
     int indice;
 } DadosWorker;
 
-static long *contas;           
+static volatile long *contas;
 static int n_requisicoes;
 static int pool_tamanho;
 static int protegido;
 static int atraso_ms;
 static int silencioso;
 
-static pthread_mutex_t acesso_saldo = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t transacao = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t fila_mutex = PTHREAD_MUTEX_INITIALIZER;
 static sem_t itens_disponiveis;
 
 static Requisicao *fila;
 static int capacidade, inicio, fim, pendentes;
-static int *em_atendimento;  
+static int *em_atendimento;
 static int concluidas;
-static int retiradas;      
+static int retiradas;
 
 static volatile sig_atomic_t solicitar_debug = 0;
 
 static void tratar_debug(int sinal) {
+    signal(SIGINT, tratar_debug);
     (void)sinal;
     solicitar_debug = 1;
 }
@@ -67,16 +67,11 @@ static void exigir(int resultado, const char *mensagem) {
 }
 
 static long ler_saldo(int id) {
-    pthread_mutex_lock(&acesso_saldo);
-    long saldo = contas[id];
-    pthread_mutex_unlock(&acesso_saldo);
-    return saldo;
+    return contas[id];
 }
 
 static void escrever_saldo(int id, long valor) {
-    pthread_mutex_lock(&acesso_saldo);
     contas[id] = valor;
-    pthread_mutex_unlock(&acesso_saldo);
 }
 
 static int transferir(Requisicao r) {
@@ -160,6 +155,7 @@ static void *executar_worker(void *arg) {
 
 static void imprimir_debug(void) {
     pthread_mutex_lock(&fila_mutex);
+    printf("\n===== DEBUG DA FILA (SIGINT) =====\n");
     printf("Concluidas: %d/%d | Aguardando: %d\n",
            concluidas, n_requisicoes, pendentes);
     printf("Em atendimento: ");
@@ -179,6 +175,7 @@ static void imprimir_debug(void) {
         printf("%d%s", fila[pos].id, i == limite - 1 ? "" : " -> ");
     }
     if (pendentes > limite) printf(" -> ... (%d outros)", pendentes - limite);
+    printf("\n==================================\n\n");
     fflush(stdout);
     pthread_mutex_unlock(&fila_mutex);
 }
@@ -229,21 +226,15 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    struct sigaction acao;
-    memset(&acao, 0, sizeof(acao));
-    acao.sa_handler = tratar_debug;
-    sigemptyset(&acao.sa_mask);
-    if (sigaction(SIGINT, &acao, NULL) == -1 ||
-        sigaction(SIGUSR1, &acao, NULL) == -1) {
-        perror("sigaction");
+    if (signal(SIGINT, tratar_debug) == SIG_ERR) {
+        printf("Nao foi possivel capturar o sinal\n");
         return EXIT_FAILURE;
     }
 
     printf("SIMULACAO PIX N:1 | pid=%ld | modo=%s | N=%d | pool=%d | atraso=%dms\n",
            (long)getpid(), protegido ? "com-protecao" : "sem-protecao",
            n_requisicoes, pool_tamanho, atraso_ms);
-    printf("Debug durante a execucao: Ctrl+C (SIGINT) ou kill -USR1 %ld\n",
-           (long)getpid());
+    printf("Debug durante a execucao: pressione Ctrl+C (SIGINT)\n");
     fflush(stdout);
 
     for (int w = 0; w < pool_tamanho; w++) {
@@ -285,13 +276,12 @@ int main(int argc, char **argv) {
     fflush(stdout);
 
     sem_destroy(&itens_disponiveis);
-    pthread_mutex_destroy(&acesso_saldo);
     pthread_mutex_destroy(&transacao);
     pthread_mutex_destroy(&fila_mutex);
     free(dados);
     free(workers);
     free(em_atendimento);
     free(fila);
-    free(contas);
+    free((void *)contas);
     return EXIT_SUCCESS;
 }
