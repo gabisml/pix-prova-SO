@@ -1,4 +1,4 @@
-# INF0336 - Primeira Avaliacao (A01)
+# Primeira Avaliacao (A01) -- SO
 
 ## Emulando o Sistema de Funcionamento do PIX
 
